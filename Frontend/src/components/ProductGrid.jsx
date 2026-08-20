@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ProductCard from './ProductCard';
 
-const ProductGrid = ({ activeCategory, onProductSelect, cart, setCart, wishlist, setWishlist, navigate }) => {
+const ProductGrid = ({ activeCategory, searchQuery, onProductSelect, cart, setCart, wishlist, setWishlist, navigate }) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,9 +47,11 @@ const ProductGrid = ({ activeCategory, onProductSelect, cart, setCart, wishlist,
     fetchProducts();
   }, []);
 
-  const filteredProducts = activeCategory === 'All'
-    ? products
-    : products.filter(product => product.category === activeCategory);
+  const filteredProducts = products.filter(product => {
+    const matchesCategory = activeCategory === 'All' || product.category === activeCategory;
+    const matchesSearch = !searchQuery || (product.title && product.title.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesCategory && matchesSearch;
+  });
 
   if (loading) {
     return <div style={{ padding: '20px', textAlign: 'center' }}>Loading products...</div>;

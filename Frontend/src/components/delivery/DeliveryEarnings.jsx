@@ -23,7 +23,7 @@ function DeliveryEarnings() {
           
           let total = 0;
           completedOrders.forEach(order => {
-             total += (order.shippingPrice || 25);
+             total += (20 + ((order.orderItems?.length || 1) * 5));
           });
 
           const withdrawn = parseFloat(localStorage.getItem('rider_withdrawn') || '0');

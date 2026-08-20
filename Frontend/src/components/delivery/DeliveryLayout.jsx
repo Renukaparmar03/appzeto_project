@@ -51,7 +51,7 @@ function DeliveryLayout() {
     if ('Notification' in window) {
       const title = 'New Delivery Assigned! 🔔';
       const options = {
-        body: order ? `Pickup: ${order.orderItems?.[0]?.seller?.businessName || 'Store'}\nDropoff: ${order.user?.name || 'Customer'} - ${order.shippingAddress?.address || ''}\nEarning: ₹${order.shippingPrice || 25}` : 'You have a new delivery request waiting.',
+        body: order ? `Pickup: ${order.orderItems?.[0]?.seller?.businessName || 'Store'}\nDropoff: ${order.user?.name || 'Customer'} - ${order.shippingAddress?.address || ''}\nEarning: ₹${20 + ((order.orderItems?.length || 1) * 5)}` : 'You have a new delivery request waiting.',
         icon: '/favicon.ico',
         requireInteraction: true
       };
@@ -310,7 +310,7 @@ function DeliveryLayout() {
               New Delivery Assigned!
             </div>
             <h2 className="del-font-extrabold" style={{ color: 'white', margin: '0 0 16px 0', fontSize: '26px' }}>
-              ₹{activeOrder.shippingPrice || 25} Delivery Earning
+              ₹{20 + ((activeOrder.orderItems?.length || 1) * 5)} Delivery Earning
             </h2>
 
             {/* Timed countdown tracker bar */}

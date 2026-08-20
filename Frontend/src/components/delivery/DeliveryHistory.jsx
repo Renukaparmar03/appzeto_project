@@ -27,7 +27,7 @@ function DeliveryHistory() {
               time: new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
               store: order.orderItems[0]?.seller?.businessName || 'Seller Store',
               destination: order.shippingAddress?.address + ', ' + order.shippingAddress?.city,
-              payout: '₹' + (order.shippingPrice || 25),
+              payout: '₹' + (20 + ((order.orderItems?.length || 1) * 5)),
               itemsCount: order.orderItems?.length || 0,
               status: order.status
             };

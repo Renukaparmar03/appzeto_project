@@ -107,14 +107,14 @@ function DeliveryHome() {
         time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
         store: activeOrder.orderItems[0]?.seller?.businessName || 'Seller Store',
         destination: activeOrder.shippingAddress?.city || 'Customer',
-        payout: '₹' + activeOrder.shippingPrice,
+        payout: '₹' + (20 + ((activeOrder.orderItems?.length || 1) * 5)),
         itemsCount: activeOrder.orderItems.length
       };
       localStorage.setItem('rider_trips', JSON.stringify([newTrip, ...savedTrips]));
 
       // Update earnings
       const prevEarnings = parseFloat(localStorage.getItem('rider_earnings') || '0');
-      const payoutVal = activeOrder.shippingPrice || 25;
+      const payoutVal = 20 + ((activeOrder.orderItems?.length || 1) * 5);
       localStorage.setItem('rider_earnings', (prevEarnings + payoutVal).toFixed(2));
       
     } else {
@@ -334,7 +334,7 @@ function DeliveryHome() {
               <div style={{ flex: 1, background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '10px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.03)' }}>
                 <ShoppingBag size={16} style={{ color: 'var(--del-primary)', marginBottom: '4px' }} />
                 <div style={{ fontSize: '11px', color: 'var(--del-text-muted)' }}>Earning</div>
-                <div style={{ fontSize: '14px', fontWeight: 800 }}>₹{activeOrder?.shippingPrice || 25}</div>
+                <div style={{ fontSize: '14px', fontWeight: 800 }}>₹{20 + ((activeOrder?.orderItems?.length || 1) * 5)}</div>
               </div>
             </div>
           </div>
@@ -407,7 +407,7 @@ function DeliveryHome() {
           <div className="del-card" style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '14px', textAlign: 'left', marginBottom: '24px' }}>
             <div className="del-flex-between">
               <span style={{ color: 'var(--del-text-muted)' }}>Trip Payout:</span>
-              <span className="del-font-semibold">₹{activeOrder?.shippingPrice || 25}</span>
+              <span className="del-font-semibold">₹{20 + ((activeOrder?.orderItems?.length || 1) * 5)}</span>
             </div>
             <div className="del-flex-between">
               <span style={{ color: 'var(--del-text-muted)' }}>Time Elapsed:</span>
@@ -415,7 +415,7 @@ function DeliveryHome() {
             </div>
             <div className="del-flex-between" style={{ borderTop: '1px solid var(--del-card-border)', paddingTop: '10px', fontSize: '15px' }}>
               <span style={{ fontWeight: 700 }}>Total Credited:</span>
-              <span style={{ fontWeight: 800, color: 'var(--del-primary)' }}>₹{activeOrder?.shippingPrice || 25}</span>
+              <span style={{ fontWeight: 800, color: 'var(--del-primary)' }}>₹{20 + ((activeOrder?.orderItems?.length || 1) * 5)}</span>
             </div>
           </div>
 

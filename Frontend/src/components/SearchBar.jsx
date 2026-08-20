@@ -1,7 +1,7 @@
 import React from 'react';
 import { Search, Mic } from 'lucide-react';
 
-const SearchBar = () => {
+const SearchBar = ({ searchQuery, setSearchQuery }) => {
   return (
     <div className="search-bar-container">
       <div className="search-input-wrapper">
@@ -10,6 +10,8 @@ const SearchBar = () => {
           type="text" 
           placeholder='Search "milk"' 
           className="search-input"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
         />
         <Mic className="mic-icon" size={20} />
       </div>

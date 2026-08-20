@@ -3,7 +3,7 @@ import { SUBCATEGORIES } from '../data';
 import ProductCard from './ProductCard';
 import { ArrowLeft } from 'lucide-react';
 
-const CategoryPage = ({ activeCategory, setActiveCategory, onProductSelect, cart, setCart, wishlist, setWishlist, navigate }) => {
+const CategoryPage = ({ activeCategory, setActiveCategory, searchQuery, onProductSelect, cart, setCart, wishlist, setWishlist, navigate }) => {
   const subCats = SUBCATEGORIES[activeCategory] || [];
   const [activeSubCategory, setActiveSubCategory] = useState('');
 
@@ -37,11 +37,12 @@ const CategoryPage = ({ activeCategory, setActiveCategory, onProductSelect, cart
     fetchProducts();
   }, []);
 
-  const filteredProducts = products.filter(
-    (product) =>
-      product.category === activeCategory &&
-      (activeSubCategory === 'All' || activeSubCategory === '' || product.subCategory === activeSubCategory)
-  );
+  const filteredProducts = products.filter(product => {
+    const matchesCategory = product.category === activeCategory;
+    const matchesSubCategory = activeSubCategory === 'All' || activeSubCategory === '' || product.subCategory === activeSubCategory;
+    const matchesSearch = !searchQuery || (product.title && product.title.toLowerCase().includes(searchQuery.toLowerCase()));
+    return matchesCategory && matchesSubCategory && matchesSearch;
+  });
 
   return (
     <div className="category-page-container">

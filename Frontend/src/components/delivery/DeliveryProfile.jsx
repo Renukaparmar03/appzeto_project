@@ -46,7 +46,7 @@ function DeliveryProfile() {
           
           let totalEarning = 0;
           completedOrders.forEach(order => {
-             totalEarning += (order.shippingPrice || 25);
+             totalEarning += (20 + ((order.orderItems?.length || 1) * 5));
           });
 
           setStats({

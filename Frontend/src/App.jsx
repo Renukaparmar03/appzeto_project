@@ -26,6 +26,7 @@ import './App.css'
 
 function CustomerApp() {
   const [activeCategory, setActiveCategory] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [cart, setCart] = useState([]);
   const [wishlist, setWishlist] = useState(() => {
@@ -144,7 +145,7 @@ function CustomerApp() {
           {(activeTab === 'home' || activeTab === 'orders' || activeTab === 'category') && (
             <>
               <Header setActiveTab={handleTabChange} setActiveCategory={setActiveCategory} />
-              <SearchBar />
+              <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
             </>
           )}
 
@@ -156,11 +157,12 @@ function CustomerApp() {
                 <HeroBanner />
                 <CategorySection activeCategory={activeCategory} setActiveCategory={setActiveCategory} />
                 {activeCategory === 'All' ? (
-                  <ProductGrid activeCategory={activeCategory} onProductSelect={setSelectedProduct} cart={cart} setCart={setCart} wishlist={wishlist} setWishlist={setWishlist} navigate={navigate} />
+                  <ProductGrid activeCategory={activeCategory} searchQuery={searchQuery} onProductSelect={setSelectedProduct} cart={cart} setCart={setCart} wishlist={wishlist} setWishlist={setWishlist} navigate={navigate} />
                 ) : (
                   <CategoryPage 
                     activeCategory={activeCategory} 
                     setActiveCategory={setActiveCategory} 
+                    searchQuery={searchQuery}
                     onProductSelect={setSelectedProduct} 
                     cart={cart}
                     setCart={setCart}
