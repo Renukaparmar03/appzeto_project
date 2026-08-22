@@ -1,12 +1,49 @@
-# Backend
-Backend/node_modules/
+# Dependencies
+node_modules/
+*/node_modules/
+package-lock.json.log
+
+# Environment & Secret Variables
+.env
+.env.*
+!.env.example
 Backend/.env
 Backend/.env.*
+Frontend/.env
+Frontend/.env.*
+
+# Build & Distribution outputs
+dist/
+build/
+Frontend/dist/
+Frontend/build/
+
+# Testing & Temp scripts
+test.js
+test-mongo.cjs
+test-mongo2.cjs
 Backend/test.js
 Backend/test-mongo.cjs
 Backend/test-mongo2.cjs
+scratch/
+*.tmp
 
-# Frontend
-Frontend/node_modules/
-Frontend/.env
-Frontend/.env.*
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
