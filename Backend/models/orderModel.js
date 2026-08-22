@@ -7,6 +7,11 @@ const orderSchema = mongoose.Schema(
       required: true,
       unique: true,
     },
+    idempotencyKey: {
+      type: String,
+      unique: true,
+      sparse: true // Allows null/missing values but ensures uniqueness when present
+    },
     user: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
@@ -22,11 +27,6 @@ const orderSchema = mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           required: true,
           ref: 'Product',
-        },
-        seller: {
-          type: mongoose.Schema.Types.ObjectId,
-          required: true,
-          ref: 'Seller',
         }
       },
     ],
@@ -77,25 +77,8 @@ const orderSchema = mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Pending', 'Accepted / Preparing', 'Packed', 'Assigned', 'Picked Up', 'Out for Delivery', 'Delivered', 'Rejected', 'Delivery Rejected', 'Cancelled'],
-      default: 'Pending'
-    },
-    rejectionReason: {
-      type: String,
-      default: ''
-    },
-    deliveryBoy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Delivery',
-      default: null
-    },
-    pickupOtp: {
-      type: String,
-      default: () => Math.floor(1000 + Math.random() * 9000).toString()
-    },
-    deliveryOtp: {
-      type: String,
-      default: () => Math.floor(1000 + Math.random() * 9000).toString()
+      enum: ['PENDING', 'PAYMENT_PROCESSING', 'PAID', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'PAYMENT_FAILED', 'CANCELLED', 'REFUNDED'],
+      default: 'PENDING'
     }
   },
   {

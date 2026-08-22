@@ -30,50 +30,84 @@ export default function AdminUsers() {
       // Group orders by user ID to get their total order count and most recent address
       const userOrdersMap = new Map();
       
-      allOrders.forEach(order => {
+      const ordersArray = Array.isArray(allOrders) ? allOrders : [];
+      
+      ordersArray.forEach(order => {
         const userId = order.user ? (order.user._id || order.user) : null;
         if (!userId) return;
 
         if (!userOrdersMap.has(userId)) {
           userOrdersMap.set(userId, {
             orders: 0,
-            latestOrderDate: new Date(0),
-            address: 'Not provided'
+            latestOrderDate: new Date(order.createdAt || 0),
+            address: 'Not provided',
+            customerName: order.user?.name || 'Customer',
+            customerEmail: order.user?.email || 'N/A',
+            customerPhone: order.user?.phone || 'Not provided'
           });
         }
         
         const userData = userOrdersMap.get(userId);
         userData.orders += 1;
         
-        // Keep the newest address
-        if (new Date(order.createdAt) > userData.latestOrderDate) {
+        // Keep the newest address & date
+        if (new Date(order.createdAt) >= userData.latestOrderDate) {
             userData.latestOrderDate = new Date(order.createdAt);
             userData.address = order.shippingAddress 
-              ? `${order.shippingAddress.address}, ${order.shippingAddress.city}, ${order.shippingAddress.postalCode}`
+              ? `${order.shippingAddress.address || ''}, ${order.shippingAddress.city || ''}, ${order.shippingAddress.postalCode || ''}`.trim()
               : userData.address;
+            if (order.user?.name) userData.customerName = order.user.name;
+            if (order.user?.email) userData.customerEmail = order.user.email;
         }
       });
 
-      // Combine real user profile data with their order statistics
-      const formattedUsers = usersData
-        .filter(u => u.role !== 'admin')
-        .map(u => {
-        const orderStats = userOrdersMap.get(u._id) || { orders: 0, address: 'Not provided yet' };
-        
-        return {
-          id: u._id,
-          name: u.name || 'Customer',
-          email: u.email || 'No email',
-          phone: u.phone || 'Not provided',
-          orders: orderStats.orders,
-          joinDate: new Date(u.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-          status: 'Active', 
-          img: `https://api.dicebear.com/7.x/initials/svg?seed=${u.name || u._id}`,
-          address: orderStats.address
-        };
+      // Filter and only show customers who have placed orders (orders > 0)
+      const validUsersList = Array.isArray(usersData) ? usersData : [];
+      
+      const formattedUsers = [];
+      
+      // 1. Match from existing registered users who have orders
+      validUsersList.forEach(u => {
+        if (u.role === 'admin') return;
+        const orderStats = userOrdersMap.get(u._id);
+        if (orderStats && orderStats.orders > 0) {
+          formattedUsers.push({
+            id: u._id,
+            name: u.name || orderStats.customerName || 'Customer',
+            email: u.email || orderStats.customerEmail || 'No email',
+            phone: u.phone || orderStats.customerPhone || 'Not provided',
+            orders: orderStats.orders,
+            latestOrderDate: orderStats.latestOrderDate,
+            joinDate: new Date(u.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+            status: 'Active', 
+            img: `https://api.dicebear.com/7.x/initials/svg?seed=${u.name || u._id}`,
+            address: orderStats.address
+          });
+          userOrdersMap.delete(u._id); // Marked as processed
+        }
       });
 
-      // Sort by newest registered user
+      // 2. Include any remaining buyers who placed orders
+      userOrdersMap.forEach((stats, uId) => {
+        if (stats.orders > 0) {
+          formattedUsers.push({
+            id: uId,
+            name: stats.customerName,
+            email: stats.customerEmail,
+            phone: stats.customerPhone,
+            orders: stats.orders,
+            latestOrderDate: stats.latestOrderDate,
+            joinDate: stats.latestOrderDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+            status: 'Active', 
+            img: `https://api.dicebear.com/7.x/initials/svg?seed=${stats.customerName || uId}`,
+            address: stats.address
+          });
+        }
+      });
+
+      // Sort by newest order first
+      formattedUsers.sort((a, b) => new Date(b.latestOrderDate) - new Date(a.latestOrderDate));
+
       setUsers(formattedUsers);
     } catch (err) {
       console.error('Error fetching users:', err);

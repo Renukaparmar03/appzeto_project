@@ -8,35 +8,23 @@ const ProductGrid = ({ activeCategory, searchQuery, onProductSelect, cart, setCa
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/products?approved=true');
+        const res = await fetch('http://localhost:5000/api/products');
         const data = await res.json();
         
-        // Filter out products whose image points to a localhost port
-        // (e.g. localhost:7071) that isn't our own backend (port 5000).
-        // These are seller-uploaded products with broken local paths.
-        const isValidImage = (url) => {
-          if (!url) return false;
-          try {
-            const parsed = new URL(url);
-            // Allow: external URLs (https://...) OR our own backend
-            if (parsed.hostname === 'localhost' && parsed.port !== '5000') return false;
-            return true;
-          } catch {
-            // Relative URL or unparseable — allow it
-            return true;
-          }
-        };
-
-        const formattedData = data
-          .filter(item => isValidImage(item.image || item.images?.[0]))
-          .map(item => ({
+        if (Array.isArray(data)) {
+          const formattedData = data.map(item => ({
             ...item,
-            id: item._id,
-            title: item.title,
-            image: item.image || item.images?.[0],
+            id: item._id || item.id,
+            title: item.title || item.name || 'Product',
+            image: item.image || (item.images && item.images[0]?.url) || item.images?.[0] || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=300&q=80',
+            price: item.discountPrice || item.price || 0,
+            originalPrice: item.originalPrice || item.price || 0,
+            category: item.category || 'General',
+            stock: item.stock !== undefined ? item.stock : 10
           }));
-        
-        setProducts(formattedData);
+          
+          setProducts(formattedData);
+        }
       } catch (error) {
         console.error('Error fetching products:', error);
       } finally {
@@ -48,7 +36,7 @@ const ProductGrid = ({ activeCategory, searchQuery, onProductSelect, cart, setCa
   }, []);
 
   const filteredProducts = products.filter(product => {
-    const matchesCategory = activeCategory === 'All' || product.category === activeCategory;
+    const matchesCategory = !activeCategory || activeCategory === 'All' || product.category?.toLowerCase() === activeCategory?.toLowerCase();
     const matchesSearch = !searchQuery || (product.title && product.title.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesCategory && matchesSearch;
   });

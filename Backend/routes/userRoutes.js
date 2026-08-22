@@ -9,7 +9,7 @@ import {
   resetPassword,
   resetPasswordAdmin
 } from '../controllers/userController.js';
-import { protectUser } from '../middleware/authMiddleware.js';
+import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -18,6 +18,6 @@ router.post('/auth', authUser);
 router.post('/logout', logoutUser);
 router.put('/reset-password', resetPassword);
 router.put('/reset-password-admin', resetPasswordAdmin);
-router.route('/profile').get(protectUser, getUserProfile).put(protectUser, updateUserProfile);
+router.route('/profile').get(protect, getUserProfile).put(protect, updateUserProfile);
 
 export default router;

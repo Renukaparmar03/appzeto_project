@@ -1,18 +1,23 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/userModel.js';
-import Seller from '../models/sellerModel.js';
 
-const protectUser = async (req, res, next) => {
+export const protect = async (req, res, next) => {
   let token;
 
-  token = req.cookies.jwt;
+  // Assuming token can come from cookies or authorization header
+  if (req.cookies.jwt) {
+    token = req.cookies.jwt;
+  } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
 
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      req.user = await User.findById(decoded.userId).select('-password');
-
+      req.user = await User.findById(decoded.userId || decoded.id).select('-password');
+      if (!req.user) {
+         return res.status(401).json({ message: 'User not found' });
+      }
       next();
     } catch (error) {
       res.status(401).json({ message: 'Not authorized, token failed' });
@@ -22,24 +27,43 @@ const protectUser = async (req, res, next) => {
   }
 };
 
-const protectSeller = async (req, res, next) => {
+export const optionalAuth = async (req, res, next) => {
   let token;
 
-  token = req.cookies.jwtSeller;
+  if (req.cookies?.jwt) {
+    token = req.cookies.jwt;
+  } else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  }
 
   if (token) {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-      req.seller = await Seller.findById(decoded.sellerId).select('-password');
-
-      next();
+      req.user = await User.findById(decoded.userId || decoded.id).select('-password');
     } catch (error) {
-      res.status(401).json({ message: 'Not authorized, token failed' });
+      console.warn('Optional auth token invalid, proceeding as guest');
     }
-  } else {
-    res.status(401).json({ message: 'Not authorized, no token' });
   }
+
+  // If token wasn't provided or failed, check if userId exists in body/query
+  if (!req.user && (req.body?.user || req.query?.userId)) {
+    try {
+      const userId = req.body?.user || req.query?.userId;
+      if (userId && userId !== '000000000000000000000000') {
+        req.user = await User.findById(userId).select('-password');
+      }
+    } catch (e) {
+      // Ignored
+    }
+  }
+
+  next();
 };
 
-export { protectUser, protectSeller };
+export const admin = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    next();
+  } else {
+    res.status(401).json({ message: 'Not authorized as an admin' });
+  }
+};

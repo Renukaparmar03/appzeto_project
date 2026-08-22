@@ -45,19 +45,20 @@ export const authUser = async (req, res) => {
 // @route   POST /api/users
 // @access  Public
 export const registerUser = async (req, res) => {
-  const { name, email, password } = req.body;
+  const { name, email, password, phone } = req.body;
 
   try {
     const userExists = await User.findOne({ email });
 
     if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: 'User already exists with this email' });
     }
 
     const user = await User.create({
-      name,
-      email,
+      name: name || 'Customer',
+      email: email?.toLowerCase(),
       password,
+      phone: phone || ''
     });
 
     if (user) {
@@ -67,6 +68,7 @@ export const registerUser = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role,
       });
     } else {

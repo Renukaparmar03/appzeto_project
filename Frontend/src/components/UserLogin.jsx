@@ -57,8 +57,8 @@ function UserLogin() {
           }}>
             <ShoppingBag size={32} />
           </div>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#166534', margin: '0 0 8px 0' }}>Welcome to QuickKart</h2>
-          <p style={{ color: '#15803d', margin: 0, fontSize: '14px' }}>Groceries delivered in 10 minutes</p>
+          <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#166534', margin: '0 0 8px 0' }}>Welcome to E-Commerce</h2>
+          <p style={{ color: '#15803d', margin: 0, fontSize: '14px' }}>Your one-stop online store</p>
         </div>
 
         <form onSubmit={handleLogin} style={{ background: 'white', padding: '32px', borderRadius: '24px', boxShadow: '0 12px 24px rgba(0,0,0,0.04)' }}>
@@ -125,7 +125,7 @@ function UserLogin() {
         </form>
 
         <p style={{ textAlign: 'center', marginTop: '24px', fontSize: '14px', color: '#6b7280' }}>
-          New to QuickKart? <Link to="/user/register" style={{ color: '#16a34a', fontWeight: '600', textDecoration: 'none' }}>Create an account</Link>
+          New to E-Commerce? <Link to="/user/register" style={{ color: '#16a34a', fontWeight: '600', textDecoration: 'none' }}>Create an account</Link>
         </p>
       </div>
     </div>

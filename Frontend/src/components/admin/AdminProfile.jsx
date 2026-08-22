@@ -23,53 +23,25 @@ export default function AdminProfile() {
   const fetchStats = async () => {
     setLoadingStats(true);
     try {
-      // ── Step 1: Fetch users and sellers in parallel ─────────────────────────
-      const [usersRes, sellersRes] = await Promise.all([
+      const [usersRes, ordersRes, productsRes] = await Promise.all([
         fetch('http://localhost:5000/api/users'),
-        fetch('http://localhost:5000/api/sellers'),
+        fetch('http://localhost:5000/api/orders'),
+        fetch('http://localhost:5000/api/products')
       ]);
 
-      // Parse each response ONCE and store the data — never reuse a Response object
-      const usersData   = usersRes.ok   ? await usersRes.json()   : [];
-      const sellersData = sellersRes.ok ? await sellersRes.json() : [];
+      const usersData = usersRes.ok ? await usersRes.json() : [];
+      const ordersData = ordersRes.ok ? await ordersRes.json() : [];
+      const productsData = productsRes.ok ? await productsRes.json() : [];
 
-      const usersCount   = Array.isArray(usersData)   ? usersData.length   : 0;
-      const sellersCount = Array.isArray(sellersData) ? sellersData.length : 0;
+      const usersCount = Array.isArray(usersData) ? usersData.length : 0;
+      const productsCount = Array.isArray(productsData) ? productsData.length : 0;
+      const ordersList = Array.isArray(ordersData) ? ordersData : [];
 
-      // ── Step 2: Fetch orders per seller (aggregate all) ─────────────────────
-      let ordersCount      = 0;
-      let totalRevenue     = 0;
-      let recentOrdersList = [];
+      const ordersCount = ordersList.length;
+      const totalRevenue = ordersList.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+      const recentOrdersList = [...ordersList].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
 
-      if (Array.isArray(sellersData) && sellersData.length > 0) {
-        // Fetch orders for up to 10 sellers concurrently
-        const orderFetches = sellersData.slice(0, 10).map(seller =>
-          fetch(`http://localhost:5000/api/orders/seller/${seller._id}`)
-            .then(r => r.ok ? r.json() : { orders: [], totalSales: 0 })
-            .catch(()  =>               ({ orders: [], totalSales: 0 }))
-        );
-
-        const allSellerResults = await Promise.all(orderFetches);
-
-        // De-duplicate orders by _id across sellers
-        const seen = new Set();
-        allSellerResults.forEach(({ orders = [], totalSales = 0 }) => {
-          totalRevenue += Number(totalSales) || 0;
-          orders.forEach(order => {
-            if (!seen.has(order._id)) {
-              seen.add(order._id);
-              recentOrdersList.push(order);
-              ordersCount++;
-            }
-          });
-        });
-
-        // Sort by newest first, keep top 5 for the activity feed
-        recentOrdersList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        recentOrdersList = recentOrdersList.slice(0, 5);
-      }
-
-      setStats({ users: usersCount, sellers: sellersCount, orders: ordersCount, revenue: totalRevenue });
+      setStats({ users: usersCount, products: productsCount, orders: ordersCount, revenue: totalRevenue });
       setRecentOrders(recentOrdersList);
       setLastRefreshed(new Date());
     } catch (err) {

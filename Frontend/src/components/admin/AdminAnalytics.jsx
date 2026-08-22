@@ -25,31 +25,17 @@ export default function AdminAnalytics() {
 
   const fetchAnalyticsData = async () => {
     try {
-      const [usersRes, sellersRes, productsRes] = await Promise.all([
+      const [usersRes, ordersRes, productsRes] = await Promise.all([
         fetch('http://localhost:5000/api/users'),
-        fetch('http://localhost:5000/api/sellers'),
+        fetch('http://localhost:5000/api/orders'),
         fetch('http://localhost:5000/api/products')
       ]);
 
       const users = await usersRes.json();
-      const sellers = await sellersRes.json();
+      const orders = await ordersRes.json();
       const products = await productsRes.json();
 
-      let allOrders = [];
-      await Promise.all(sellers.map(async (seller) => {
-        try {
-          const orderRes = await fetch(`http://localhost:5000/api/orders/seller/${seller._id}`);
-          const orderData = await orderRes.json();
-          if (orderData.orders) {
-            allOrders = [...allOrders, ...orderData.orders];
-          }
-        } catch (e) {}
-      }));
-
-      // Deduplicate orders
-      const uniqueOrdersMap = new Map();
-      allOrders.forEach(o => uniqueOrdersMap.set(o._id, o));
-      const uniqueOrders = Array.from(uniqueOrdersMap.values());
+      let uniqueOrders = Array.isArray(orders) ? orders : [];
 
       // 1. Totals
       const totalOrders = uniqueOrders.length;

@@ -267,23 +267,29 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.6);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  z-index: 1000;
-  padding: 20px;
+  z-index: 9999;
+  padding: 30px 16px;
+  overflow-y: auto;
   animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+  background-color: var(--admin-card, #ffffff);
+  border-radius: var(--admin-radius, 12px);
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+  margin: auto;
+  animation: slideUp 0.3s ease;
 }
 
 .modal-content.large {
   max-width: 800px;
-  background-color: var(--admin-card, #ffffff);
-  border-radius: var(--admin-radius, 12px);
-  width: 100%;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-  overflow: hidden;
-  animation: slideUp 0.3s ease;
 }
 
 .product-details-container {

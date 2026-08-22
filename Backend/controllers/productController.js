@@ -6,21 +6,19 @@ import Product from '../models/productModel.js';
 export const getProducts = async (req, res) => {
   try {
     let query = {};
-    if (req.query.sellerId) {
-      query.seller = req.query.sellerId;
+
+    // Filter by category only if a specific valid category is requested and not 'All'
+    if (req.query.category && req.query.category !== 'All') {
+      query.category = req.query.category;
     }
-    
-    let products = await Product.find(query).populate('seller', 'status');
-    
-    if (req.query.approved === 'true') {
-      products = products.filter(p => p.isApproved && p.seller && p.seller.status === 'approved');
-    }
-    
+
+    const products = await Product.find(query).sort({ createdAt: -1 });
     res.json(products);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 // @desc    Fetch single product
 // @route   GET /api/products/:id
@@ -44,23 +42,28 @@ export const getProductById = async (req, res) => {
 // @access  Private/Seller
 export const createProduct = async (req, res) => {
   try {
-    const { title, price, discountPrice, originalPrice, brand, status, description, image, images, category, stock, sellerId, dynamicFields, customAttributes } = req.body;
+    const { title, price, discountPrice, originalPrice, brand, status, description, image, images, category, stock, sku, variants, dynamicFields, customAttributes } = req.body;
+
+    const fallbackSku = sku || `PRD-${Date.now().toString().slice(-6)}`;
+    const mainImage = image || (images && images[0]?.url) || images?.[0] || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400&q=80';
 
     const product = new Product({
-      title,
-      price,
-      discountPrice,
-      originalPrice,
-      brand,
-      status,
-      description,
-      image,
-      images,
-      category,
-      stock,
-      dynamicFields,
-      customAttributes,
-      seller: sellerId || req.body.seller // fallback for now
+      title: title || 'New Product',
+      price: Number(price) || 0,
+      discountPrice: discountPrice ? Number(discountPrice) : Number(price) || 0,
+      originalPrice: originalPrice ? Number(originalPrice) : Number(price) || 0,
+      brand: brand || 'Store Brand',
+      status: status || 'Active',
+      description: description || 'No description provided.',
+      image: mainImage,
+      images: Array.isArray(images) && images.length > 0 ? images.map(img => typeof img === 'string' ? { url: img } : img) : [{ url: mainImage }],
+      category: category || 'Grocery & Kitchen',
+      stock: stock !== undefined ? Number(stock) : 50,
+      sku: fallbackSku,
+      variants: Array.isArray(variants) ? variants : [],
+      dynamicFields: dynamicFields || {},
+      customAttributes: customAttributes || [],
+      isApproved: true // Direct admin addition is automatically approved
     });
 
     const createdProduct = await product.save();
@@ -69,6 +72,7 @@ export const createProduct = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 
 // @desc    Update a product
 // @route   PUT /api/products/:id

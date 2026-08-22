@@ -27,13 +27,15 @@ const ProductDetailPage = ({ product, onBack, onSelectProduct, cart = [], setCar
   React.useEffect(() => {
     const fetchRelated = async () => {
       try {
-        const res = await fetch('http://localhost:5000/api/products?approved=true');
+        const res = await fetch('http://localhost:5000/api/products');
         const data = await res.json();
-        const formattedData = data.map(item => ({
+        const formattedData = Array.isArray(data) ? data.map(item => ({
           ...item,
-          id: item._id,
-          title: item.title,
-        }));
+          id: item._id || item.id,
+          title: item.title || item.name || 'Product',
+          image: item.image || (item.images && item.images[0]?.url) || item.images?.[0] || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=300&q=80',
+          price: item.discountPrice || item.price || 0
+        })) : [];
         let related = formattedData.filter(p => p.id !== product.id);
         
         related.forEach(p => {

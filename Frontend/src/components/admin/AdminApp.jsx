@@ -8,17 +8,6 @@ import {
 } from 'lucide-react';
 import './AdminApp.css';
 import AdminUsers from './AdminUsers';
-import AdminSellerOverview from './AdminSellerOverview';
-import AdminSellers from './AdminSellers';
-import AdminSellerRequests from './AdminSellerRequests';
-import AdminGSTVerification from './AdminGSTVerification';
-import AdminFundRelease from './AdminFundRelease';
-import AdminDeliveryOverview from './AdminDeliveryOverview';
-import AdminDeliveryPartners from './AdminDeliveryPartners';
-import AdminActiveDeliveries from './AdminActiveDeliveries';
-import AdminDeliveryHistory from './AdminDeliveryHistory';
-import AdminDeliveryEarnings from './AdminDeliveryEarnings';
-import AdminDeliveryRequests from './AdminDeliveryRequests';
 import AdminBanners from './AdminBanners';
 import AdminProducts from './AdminProducts';
 import AdminOrders from './AdminOrders';
@@ -50,67 +39,32 @@ const AdminDashboard = () => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        const [sellersRes, ordersRes, usersRes] = await Promise.all([
-          fetch('http://localhost:5000/api/sellers'),
+        const [productsRes, ordersRes, usersRes] = await Promise.all([
+          fetch('http://localhost:5000/api/products'),
           fetch('http://localhost:5000/api/orders'),
           fetch('http://localhost:5000/api/users')
         ]);
         
-        const sellersData = await sellersRes.json();
+        const productsData = await productsRes.json();
         const ordersData = await ordersRes.json();
         const usersData = await usersRes.json();
         
-        let totalRevenue = 0;
-        const sellerStatsMap = {};
+        const validOrders = Array.isArray(ordersData) ? ordersData : [];
+        const validProducts = Array.isArray(productsData) ? productsData : [];
+        const validUsers = Array.isArray(usersData) ? usersData : [];
 
-        sellersData.forEach(seller => {
-          sellerStatsMap[seller._id] = {
-            name: seller.businessName || seller.ownerName || 'Seller',
-            img: seller.logo || 'https://placehold.co/50x50',
-            rev: 0,
-            orders: 0
-          };
-        });
-
-        const validOrders = ordersData.filter(order => {
-          return order.orderItems && order.orderItems.some(item => item.seller && item.seller._id && sellerStatsMap[item.seller._id]);
-        });
-
-        validOrders.forEach(order => {
-          totalRevenue += order.totalPrice || 0;
-          const sellersInOrder = new Set();
-          
-          order.orderItems.forEach(item => {
-            if (item.seller && item.seller._id) {
-              const sId = item.seller._id;
-              if (sellerStatsMap[sId]) {
-                sellerStatsMap[sId].rev += (item.price * item.qty);
-                
-                if (!sellersInOrder.has(sId)) {
-                  sellerStatsMap[sId].orders += 1;
-                  sellersInOrder.add(sId);
-                }
-              }
-            }
-          });
-        });
-
-        const sellerStats = Object.values(sellerStatsMap);
-        sellerStats.sort((a, b) => b.rev - a.rev);
-        const top5Sellers = sellerStats.slice(0, 4);
+        let totalRevenue = validOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
 
         const recentOrders = validOrders.slice(0, 10);
-
-        // Real active users count (excluding admins)
-        const realUsersCount = usersData.filter(u => u.role !== 'admin').length;
+        const realUsersCount = validUsers.filter(u => u.role !== 'admin').length;
 
         setStats({
           totalUsers: realUsersCount,
-          totalSellers: sellersData.length,
+          totalProducts: validProducts.length,
           totalOrders: validOrders.length,
           totalRevenue: totalRevenue,
           recentOrders: recentOrders,
-          topSellers: top5Sellers
+          topProducts: validProducts.slice(0, 4)
         });
       } catch (err) {
         console.error('Error fetching admin dashboard data:', err);
@@ -128,7 +82,7 @@ const AdminDashboard = () => {
       <div className="dashboard-welcome">
         <div>
           <h1>Admin Dashboard</h1>
-          <p>Monitor your platform's overall performance</p>
+          <p>Monitor your store's overall performance</p>
         </div>
         <div className="quick-actions-btns">
         </div>
@@ -145,19 +99,19 @@ const AdminDashboard = () => {
                 <Users size={24} />
               </div>
               <div className="stat-info">
-                <p className="stat-label">Active Users</p>
+                <p className="stat-label">Active Customers</p>
                 <h3 className="stat-value">{stats.totalUsers}</h3>
                 <span className="trend positive"><ArrowUpRight size={14} /> Live Data</span>
               </div>
             </div>
             <div className="stat-card">
               <div className="stat-icon bg-purple">
-                <Store size={24} />
+                <Package size={24} />
               </div>
               <div className="stat-info">
-                <p className="stat-label">Total Sellers</p>
-                <h3 className="stat-value">{stats.totalSellers}</h3>
-                <span className="trend positive"><ArrowUpRight size={14} /> Live Data</span>
+                <p className="stat-label">Total Products</p>
+                <h3 className="stat-value">{stats.totalProducts || 0}</h3>
+                <span className="trend positive"><ArrowUpRight size={14} /> In Catalog</span>
               </div>
             </div>
             <div className="stat-card">
@@ -167,7 +121,7 @@ const AdminDashboard = () => {
               <div className="stat-info">
                 <p className="stat-label">Total Orders</p>
                 <h3 className="stat-value">{stats.totalOrders}</h3>
-                <span className="trend positive"><ArrowUpRight size={14} /> Live Data</span>
+                <span className="trend positive"><ArrowUpRight size={14} /> Live Orders</span>
               </div>
             </div>
             <div className="stat-card">
@@ -177,7 +131,7 @@ const AdminDashboard = () => {
               <div className="stat-info">
                 <p className="stat-label">Total Revenue</p>
                 <h3 className="stat-value">₹{stats.totalRevenue.toLocaleString()}</h3>
-                <span className="trend positive"><ArrowUpRight size={14} /> Live Data</span>
+                <span className="trend positive"><ArrowUpRight size={14} /> Net Gross</span>
               </div>
             </div>
           </div>
@@ -208,17 +162,17 @@ const AdminDashboard = () => {
                   <h3>Quick Actions</h3>
                 </div>
                 <div className="action-buttons-grid">
+                  <button className="action-btn" onClick={() => navigate('/admin/products')}>
+                    <PlusCircle size={20} className="text-green" />
+                    <span>+ Add Product</span>
+                  </button>
                   <button className="action-btn" onClick={() => navigate('/admin/orders')}>
                     <ShoppingCart size={20} className="text-orange" />
                     <span>View Orders</span>
                   </button>
                   <button className="action-btn" onClick={() => navigate('/admin/products')}>
                     <Package size={20} className="text-purple" />
-                    <span>Manage Products</span>
-                  </button>
-                  <button className="action-btn" onClick={() => navigate('/admin/notification')}>
-                    <Bell size={20} className="text-green" />
-                    <span>Notify All</span>
+                    <span>Catalog</span>
                   </button>
                 </div>
               </div>
@@ -289,24 +243,24 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Top Sellers */}
+            {/* Top Products */}
             <div className="top-sellers card">
               <div className="card-header">
-                <h3>Top Sellers</h3>
-                <button className="btn-text">View All</button>
+                <h3>Top Products</h3>
+                <button className="btn-text" onClick={() => navigate('/admin/products')}>View All</button>
               </div>
               <div className="sellers-list">
-                {stats.topSellers.length === 0 ? (
-                  <div style={{textAlign: 'center', padding: '20px', color: '#666'}}>No sellers yet</div>
+                {(!stats.topProducts || stats.topProducts.length === 0) ? (
+                  <div style={{textAlign: 'center', padding: '20px', color: '#666'}}>No products yet</div>
                 ) : (
-                  stats.topSellers.map((seller, i) => (
+                  stats.topProducts.map((prod, i) => (
                     <div className="seller-item" key={i}>
-                      <img src={seller.img} alt={seller.name} className="seller-img" style={{objectFit: 'cover'}} />
+                      <img src={prod.image || 'https://placehold.co/50x50'} alt={prod.title} className="seller-img" style={{objectFit: 'cover'}} />
                       <div className="seller-info">
-                        <h4>{seller.name}</h4>
-                        <p>{seller.orders} orders</p>
+                        <h4>{prod.title}</h4>
+                        <p>{prod.category} • Stock: {prod.stock}</p>
                       </div>
-                      <div className="seller-rev">₹{seller.rev.toLocaleString()}</div>
+                      <div className="seller-rev">₹{(prod.discountPrice || prod.price || 0).toLocaleString()}</div>
                     </div>
                   ))
                 )}
@@ -321,9 +275,8 @@ const AdminDashboard = () => {
 
 export default function AdminApp() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [openMenus, setOpenMenus] = useState({ 'Seller Management': false, 'Delivery Management': false });
-  const [pendingCount, setPendingCount] = useState(0);
-  const [pendingDeliveryCount, setPendingDeliveryCount] = useState(0);
+  const [openMenus, setOpenMenus] = useState({});
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -340,22 +293,19 @@ export default function AdminApp() {
     
     if (isLoggedIn) {
       const fetchCounts = () => {
-        fetch('http://localhost:5000/api/sellers?status=pending')
-          .then(res => res.json())
-          .then(data => setPendingCount(data.length))
-          .catch(err => console.error(err));
-
-        fetch('http://localhost:5000/api/delivery')
+        fetch('http://localhost:5000/api/orders')
           .then(res => res.json())
           .then(data => {
-            const pending = data.filter(d => d.status === 'pending');
-            setPendingDeliveryCount(pending.length);
+            if (Array.isArray(data)) {
+              const pending = data.filter(o => o.status === 'PENDING' || o.status === 'PROCESSING');
+              setPendingOrdersCount(pending.length);
+            }
           })
           .catch(err => console.error(err));
       };
 
       fetchCounts();
-      const interval = setInterval(fetchCounts, 5000); // Real-time reflection
+      const interval = setInterval(fetchCounts, 10000);
       return () => clearInterval(interval);
     }
   }, [location.pathname, navigate]);
@@ -369,31 +319,6 @@ export default function AdminApp() {
   const menuItems = [
     { name: 'Dashboard', path: '/admin/home', icon: <LayoutDashboard size={20} /> },
     { name: 'Users', path: '/admin/users', icon: <Users size={20} /> },
-    { 
-      name: 'Seller Management', 
-      icon: <Store size={20} />,
-      isDropdown: true,
-      subItems: [
-        { name: 'Seller Overview', path: '/admin/seller-overview' },
-        { name: 'All Sellers', path: '/admin/all-sellers' },
-        { name: 'Seller Requests', path: '/admin/seller-requests', badge: pendingCount > 0 ? pendingCount : null },
-        { name: 'GST Verification', path: '/admin/gst-verification' },
-        { name: 'Fund Release', path: '/admin/fund-release' },
-      ]
-    },
-    { 
-      name: 'Delivery Management', 
-      icon: <Truck size={20} />,
-      isDropdown: true,
-      subItems: [
-        { name: 'Delivery Overview', path: '/admin/delivery-overview' },
-        { name: 'Delivery Requests', path: '/admin/delivery-requests', badge: pendingDeliveryCount > 0 ? pendingDeliveryCount : null },
-        { name: 'Delivery Partners', path: '/admin/delivery-partners' },
-        { name: 'Active Deliveries', path: '/admin/active-deliveries' },
-        { name: 'Delivery History', path: '/admin/delivery-history' },
-        { name: 'Delivery Earnings & Bonuses', path: '/admin/delivery-earnings' },
-      ]
-    },
     { name: 'Banners', path: '/admin/banners', icon: <ImageIcon size={20} /> },
     { name: 'Categories', path: '/admin/categories', icon: <Grid size={20} /> },
     { name: 'Products', path: '/admin/products', icon: <Package size={20} /> },
@@ -515,10 +440,10 @@ export default function AdminApp() {
             </div>
           </div>
           <div className="topbar-right">
-            <button className="icon-btn" onClick={() => navigate('/admin/notification')}>
+            <button className="icon-btn" onClick={() => navigate('/admin/orders')}>
               <Bell size={20} />
-              {(pendingCount + pendingDeliveryCount) > 0 && (
-                <span className="badge">{pendingCount + pendingDeliveryCount}</span>
+              {pendingOrdersCount > 0 && (
+                <span className="badge">{pendingOrdersCount}</span>
               )}
             </button>
             <div className="admin-profile" onClick={() => navigate('/admin/profile')} style={{ cursor: 'pointer' }}>
@@ -536,19 +461,6 @@ export default function AdminApp() {
           <Routes>
             <Route path="home" element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
-            {/* Seller routes will go here when implemented */}
-            <Route path="seller-overview" element={<AdminSellerOverview />} />
-            <Route path="all-sellers" element={<AdminSellers />} />
-            <Route path="seller-requests" element={<AdminSellerRequests />} />
-            <Route path="gst-verification" element={<AdminGSTVerification />} />
-            <Route path="fund-release" element={<AdminFundRelease />} />
-            {/* Delivery Management Routes */}
-            <Route path="delivery-overview" element={<AdminDeliveryOverview />} />
-            <Route path="delivery-requests" element={<AdminDeliveryRequests />} />
-            <Route path="delivery-partners" element={<AdminDeliveryPartners />} />
-            <Route path="active-deliveries" element={<AdminActiveDeliveries />} />
-            <Route path="delivery-history" element={<AdminDeliveryHistory />} />
-            <Route path="delivery-earnings" element={<AdminDeliveryEarnings />} />
             <Route path="banners" element={<AdminBanners />} />
             <Route path="categories" element={<AdminCategories />} />
             <Route path="products" element={<AdminProducts />} />

@@ -2,11 +2,7 @@ import mongoose from 'mongoose';
 
 const productSchema = mongoose.Schema(
   {
-    seller: {
-      type: mongoose.Schema.Types.ObjectId,
-      required: true,
-      ref: 'Seller',
-    },
+
     title: {
       type: String,
       required: true,
@@ -41,6 +37,19 @@ const productSchema = mongoose.Schema(
       required: true,
       default: 0,
     },
+    sku: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    variants: [
+      {
+        size: String,
+        color: String,
+        stock: { type: Number, default: 0 },
+        sku: String,
+      }
+    ],
     brand: {
       type: String,
     },

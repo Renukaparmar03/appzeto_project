@@ -71,7 +71,15 @@ const PaymentPage = ({ cart, navigate, setCart }) => {
     });
     if (!res.ok) throw new Error('Failed to create order');
     const data = await res.json();
-    const orderId = data?.[0]?._id?.substring(0, 8).toUpperCase() || ('ORD' + Math.floor(100000 + Math.random() * 900000));
+    const createdOrder = Array.isArray(data) ? data[0] : data;
+    const orderId = createdOrder?.orderId || createdOrder?._id?.substring(0, 8).toUpperCase() || ('ORD' + Math.floor(100000 + Math.random() * 900000));
+    
+    // Save to local recent orders so it's always immediately visible in OrdersPage
+    try {
+      const prevRecent = JSON.parse(localStorage.getItem('user_recent_orders') || '[]');
+      localStorage.setItem('user_recent_orders', JSON.stringify([createdOrder, ...prevRecent]));
+    } catch (e) {}
+
     if (setCart) setCart([]);
     navigate('/user/order-success', { state: { orderId, paymentMethod: 'COD' } });
   };

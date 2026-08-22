@@ -13,7 +13,7 @@ const Header = ({ setActiveTab, setActiveCategory }) => {
           }}
           style={{ cursor: 'pointer' }}
         >
-          <span className="logo-text">Quick<span className="logo-accent">Kart</span></span>
+          <span className="logo-text">E-<span className="logo-accent">Commerce</span></span>
         </div>
         
         <div className="header-actions">

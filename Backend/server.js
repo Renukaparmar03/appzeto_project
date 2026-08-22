@@ -4,22 +4,29 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import http from 'http';
 import { Server } from 'socket.io';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import mongoSanitize from 'express-mongo-sanitize';
 import connectDB from './config/db.js';
 import userRoutes from './routes/userRoutes.js';
-import sellerRoutes from './routes/sellerRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import bannerRoutes from './routes/bannerRoutes.js';
-import deliveryRoutes from './routes/deliveryRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
+import { initializeWorkers } from './jobs/queueSetup.js';
 import paymentRoutes from './routes/paymentRoutes.js'; // Razorpay payment gateway
 import categoryRoutes from './routes/categoryRoutes.js';
+import cartRoutes from './routes/cartRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 import dns from "node:dns/promises";
 dns.setServers(["8.8.8.8"], ["1.1.1.1"]);
 
 dotenv.config();
 
 connectDB();
+
+// Initialize Background Workers
+initializeWorkers();
 
 const ALLOWED_ORIGINS = [
   'http://localhost:5173', // Local Vite dev
@@ -65,13 +72,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Delivery boys can join a general 'delivery_boys' room for broad notifications
-  socket.on('joinDeliveryRoom', () => {
-    socket.join('delivery_boys');
-    console.log(`Socket ${socket.id} joined room delivery_boys`);
-
-    // Log current rooms
-    console.log(`Socket ${socket.id} is now in rooms:`, Array.from(socket.rooms));
+  socket.on('joinAdminRoom', () => {
+    socket.join('admin_dashboard');
+    console.log(`Socket ${socket.id} joined room admin_dashboard`);
   });
 
   socket.on('disconnect', () => {
@@ -87,16 +90,35 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// Security Middleware
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+}));
+
+app.use((req, res, next) => {
+  if (req.body) {
+    mongoSanitize.sanitize(req.body);
+  }
+  next();
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5000, // relaxed limit for smooth local development & live polling
+  message: 'Too many requests from this IP, please try again after 15 minutes'
+});
+app.use('/api/', apiLimiter);
+
 // Routes
 app.use('/api/users', userRoutes);
-app.use('/api/sellers', sellerRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/banners', bannerRoutes);
-app.use('/api/delivery', deliveryRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);          // Razorpay payment routes
 app.use('/api/categories', categoryRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/', (req, res) => {
   res.send('API is running...');

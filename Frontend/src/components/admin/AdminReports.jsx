@@ -20,31 +20,18 @@ export default function AdminReports() {
   const fetchReportsData = async () => {
     try {
       setLoading(true);
-      const [usersRes, sellersRes] = await Promise.all([
+      const [usersRes, ordersRes] = await Promise.all([
         fetch('http://localhost:5000/api/users'),
-        fetch('http://localhost:5000/api/sellers')
+        fetch('http://localhost:5000/api/orders')
       ]);
 
       const users = await usersRes.json();
-      const sellers = await sellersRes.json();
+      const orders = await ordersRes.json();
 
       const userMap = {};
-      users.forEach(u => userMap[u._id] = u);
+      if (Array.isArray(users)) users.forEach(u => userMap[u._id] = u);
 
-      let allOrders = [];
-      await Promise.all(sellers.map(async (seller) => {
-        try {
-          const orderRes = await fetch(`http://localhost:5000/api/orders/seller/${seller._id}`);
-          const orderData = await orderRes.json();
-          if (orderData.orders) {
-            allOrders = [...allOrders, ...orderData.orders];
-          }
-        } catch (e) {}
-      }));
-
-      const uniqueOrdersMap = new Map();
-      allOrders.forEach(o => uniqueOrdersMap.set(o._id, o));
-      const uniqueOrders = Array.from(uniqueOrdersMap.values());
+      const uniqueOrders = Array.isArray(orders) ? orders : [];
       uniqueOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
       // Generate reports based on actual platform anomalies (Cancelled or Delayed)

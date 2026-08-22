@@ -638,8 +638,8 @@ const ProfilePage = ({ setActiveTab, setActiveCategory }) => {
 
         {/* Brand Footer */}
         <div className="profile-brand-footer">
-          <span className="brand-footer-logo">Quick<span className="logo-accent">Kart</span></span>
-          <p className="brand-footer-version">v17.95.4</p>
+          <span className="brand-footer-logo">E-<span className="logo-accent">Commerce</span></span>
+          <p className="brand-footer-version">v1.0.0</p>
         </div>
       </div>
 

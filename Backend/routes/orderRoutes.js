@@ -1,23 +1,35 @@
 import express from 'express';
-import { 
-  addOrderItems, 
-  getSellerOrders, 
-  updateOrderStatus, 
+import {
+  addOrderItems,
+  getOrderById,
   getUserOrders,
-  getAvailableForDelivery,
-  getDeliveryBoyOrders,
-  assignDeliveryBoy,
-  getAllOrders
+  cancelOrder,
+  updateOrderStatus
 } from '../controllers/orderController.js';
+import { protect, admin, optionalAuth } from '../middleware/authMiddleware.js'; // Assuming auth middleware exists
 
 const router = express.Router();
 
-router.route('/').post(addOrderItems).get(getAllOrders);
-router.route('/available-for-delivery').get(getAvailableForDelivery);
-router.route('/seller/:id').get(getSellerOrders);
-router.route('/user/:id').get(getUserOrders);
-router.route('/delivery-boy/:id').get(getDeliveryBoyOrders);
-router.route('/:id/assign').put(assignDeliveryBoy);
-router.route('/:id/status').put(updateOrderStatus);
+// Required routes from user prompt:
+// POST /api/orders
+// GET /api/orders
+// GET /api/orders/:id
+// POST /api/orders/:id/cancel
+
+router.route('/')
+  .post(optionalAuth, addOrderItems)
+  .get(optionalAuth, getUserOrders);
+
+router.route('/user/:userId')
+  .get(optionalAuth, getUserOrders);
+
+router.route('/:id')
+  .get(optionalAuth, getOrderById);
+
+router.route('/:id/cancel')
+  .post(optionalAuth, cancelOrder);
+
+router.route('/:id/status')
+  .put(optionalAuth, updateOrderStatus);
 
 export default router;

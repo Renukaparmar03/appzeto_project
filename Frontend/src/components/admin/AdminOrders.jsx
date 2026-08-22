@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Search, Filter, Eye, Edit, XCircle, Trash2, X, MapPin, 
-  ShoppingBag, CheckCircle, Truck, PackageOpen, CreditCard, Clock, User, Store, IndianRupee
+  ShoppingBag, CheckCircle, Truck, PackageOpen, CreditCard, Clock, User, Store, IndianRupee, Bell, ArrowRight, Check
 } from 'lucide-react';
+import { io } from 'socket.io-client';
 import './AdminOrders.css';
 
 export default function AdminOrders() {
@@ -11,80 +12,130 @@ export default function AdminOrders() {
   const [paymentFilter, setPaymentFilter] = useState('All');
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [newOrderAlert, setNewOrderAlert] = useState(null);
 
-  React.useEffect(() => {
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [updatingId, setUpdatingId] = useState(null);
+
+  useEffect(() => {
     fetchAllOrders();
+
+    // Socket.io Real-time Connection for Incoming Orders
+    const socket = io('http://localhost:5000', { transports: ['websocket', 'polling'] });
+    
+    socket.emit('joinAdminRoom');
+
+    socket.on('newOrder', (newOrder) => {
+      console.log('🔔 Live new order arrived in admin:', newOrder);
+      setNewOrderAlert(newOrder);
+      fetchAllOrders(); // Refresh list immediately
+
+      // Auto dismiss alert banner after 12s
+      setTimeout(() => {
+        setNewOrderAlert(null);
+      }, 12000);
+    });
+
+    socket.on('orderUpdated', (updatedOrder) => {
+      setOrders(prev => prev.map(o => o.realId === updatedOrder._id ? {
+        ...o,
+        status: updatedOrder.status,
+        deliveryStatus: updatedOrder.status,
+        paymentStatus: updatedOrder.isPaid ? 'Paid' : 'Pending'
+      } : o));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const fetchAllOrders = async () => {
     try {
       setLoading(true);
-      const sellersRes = await fetch('http://localhost:5000/api/sellers');
-      const sellersData = await sellersRes.json();
+      const res = await fetch('http://localhost:5000/api/orders');
+      const data = await res.json();
       
-      const sellerMap = {};
-      if (Array.isArray(sellersData)) {
-        sellersData.forEach(s => {
-          sellerMap[s._id] = s.businessName || s.ownerName || 'Unknown Seller';
-        });
-      }
-
-      let allOrders = [];
-      await Promise.all(sellersData.map(async (seller) => {
-        try {
-          const orderRes = await fetch(`http://localhost:5000/api/orders/seller/${seller._id}`);
-          const orderData = await orderRes.json();
-          if (orderData.orders) {
-            allOrders = [...allOrders, ...orderData.orders];
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }));
-
-      // Deduplicate orders
-      const uniqueOrdersMap = new Map();
-      allOrders.forEach(o => uniqueOrdersMap.set(o._id, o));
-      const uniqueOrders = Array.from(uniqueOrdersMap.values());
+      const ordersArray = Array.isArray(data) ? data : (data.orders || []);
       
-      // Sort by newest
-      uniqueOrders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-      const formattedOrders = uniqueOrders.map(order => {
+      const formatted = ordersArray.map(order => {
         const firstItem = order.orderItems && order.orderItems[0];
-        const sellerId = firstItem ? (firstItem.seller?._id || firstItem.seller) : null;
+        const totalItemsQty = order.orderItems?.reduce((acc, item) => acc + (item.qty || 1), 0) || 1;
         
         return {
-          id: order._id,
-          customer: order.user?.name || 'Customer', // Populated user data
-          seller: sellerMap[sellerId] || 'Multiple/Unknown',
-          product: order.orderItems?.length > 1 
-            ? `${firstItem?.title} + ${order.orderItems.length - 1} more` 
-            : firstItem?.title || 'Unknown Product',
-          img: firstItem?.image || 'https://placehold.co/50x50',
-          amount: `₹${order.totalPrice}`,
-          paymentMethod: order.paymentMethod || 'UPI',
+          id: order.orderId || (order._id ? `ORD-${order._id.substring(0,8).toUpperCase()}` : 'ORD-N/A'),
+          realId: order._id,
+          customer: order.user?.name || 'Store Customer',
+          customerEmail: order.user?.email || 'N/A',
+          customerPhone: order.user?.phone || 'N/A',
+          seller: 'Direct Store',
+          itemsCount: order.orderItems?.length || 1,
+          qty: totalItemsQty,
+          amount: `₹${order.totalPrice || 0}`,
+          numericAmount: order.totalPrice || 0,
+          status: order.status || 'PENDING',
+          deliveryStatus: order.status || 'PENDING',
+          paymentMethod: order.paymentMethod || 'COD',
           paymentStatus: order.isPaid ? 'Paid' : 'Pending',
-          deliveryStatus: order.status || 'Pending',
-          date: new Date(order.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
-          qty: order.orderItems?.reduce((acc, item) => acc + item.qty, 0) || 1,
+          date: new Date(order.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
           address: order.shippingAddress 
-            ? `${order.shippingAddress.address}, ${order.shippingAddress.city}, ${order.shippingAddress.postalCode}`
-            : 'Not Provided',
+            ? `${order.shippingAddress.address || ''}, ${order.shippingAddress.city || ''}, ${order.shippingAddress.postalCode || ''}`.trim()
+            : 'Standard Delivery Address',
+          itemsList: order.orderItems || [],
+          img: firstItem?.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=100&q=80',
+          productTitle: firstItem?.title ? (order.orderItems.length > 1 ? `${firstItem.title} + ${order.orderItems.length - 1} more` : firstItem.title) : 'Store Items',
           rawOrder: order
         };
       });
 
-      setOrders(formattedOrders);
+      setOrders(formatted);
     } catch (err) {
       console.error('Error fetching admin orders:', err);
     } finally {
       setLoading(false);
     }
   };
-  
-  const [selectedOrder, setSelectedOrder] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleUpdateStatus = async (realId, newStatus, isPaidValue = undefined) => {
+    try {
+      setUpdatingId(realId);
+      const payload = { status: newStatus };
+      if (isPaidValue !== undefined) payload.isPaid = isPaidValue;
+
+      const res = await fetch(`http://localhost:5000/api/orders/${realId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        const updated = await res.json();
+        setOrders(prev => prev.map(o => o.realId === realId ? {
+          ...o,
+          status: updated.status,
+          deliveryStatus: updated.status,
+          paymentStatus: updated.isPaid ? 'Paid' : o.paymentStatus
+        } : o));
+
+        if (selectedOrder && selectedOrder.realId === realId) {
+          setSelectedOrder(prev => ({
+            ...prev,
+            status: updated.status,
+            deliveryStatus: updated.status,
+            paymentStatus: updated.isPaid ? 'Paid' : prev.paymentStatus
+          }));
+        }
+      } else {
+        alert('Failed to update status on server');
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      alert('Error updating order status');
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const handleSearch = (e) => setSearchTerm(e.target.value);
   const handleDeliveryFilter = (e) => setDeliveryFilter(e.target.value);
@@ -93,8 +144,8 @@ export default function AdminOrders() {
   const filteredOrders = orders.filter(order => {
     const matchesSearch = order.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          order.seller.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesDelivery = deliveryFilter === 'All' || order.deliveryStatus === deliveryFilter;
+                          order.productTitle.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDelivery = deliveryFilter === 'All' || order.status === deliveryFilter;
     const matchesPayment = paymentFilter === 'All' || order.paymentStatus === paymentFilter;
     return matchesSearch && matchesDelivery && matchesPayment;
   });
@@ -111,44 +162,78 @@ export default function AdminOrders() {
 
   const getDeliveryClass = (status) => {
     switch (status) {
-      case 'Delivered': return 'status-delivered';
-      case 'Processing': return 'status-processing';
-      case 'Pending': return 'status-pending';
-      case 'Cancelled': return 'status-cancelled';
-      default: return '';
-    }
-  };
-
-  const getPaymentClass = (status) => {
-    switch (status) {
-      case 'Paid': return 'status-delivered';
-      case 'Pending': return 'status-pending';
-      case 'Failed': return 'status-cancelled';
-      default: return '';
+      case 'DELIVERED': return 'status-delivered';
+      case 'SHIPPED': return 'status-processing';
+      case 'PROCESSING':
+      case 'ACCEPTED': return 'status-processing';
+      case 'PENDING': return 'status-pending';
+      case 'CANCELLED':
+      case 'REJECTED': return 'status-cancelled';
+      default: return 'status-pending';
     }
   };
 
   const stats = {
     total: orders.length,
-    delivered: orders.filter(o => o.deliveryStatus === 'Delivered').length,
-    pending: orders.filter(o => o.deliveryStatus === 'Pending' || o.deliveryStatus === 'Preparing').length,
-    revenue: `₹${orders.filter(o => o.paymentStatus === 'Paid' || o.deliveryStatus === 'Delivered').reduce((sum, o) => sum + Number(o.amount.replace(/[^0-9.-]+/g,"")), 0).toLocaleString()}`
+    pending: orders.filter(o => o.status === 'PENDING' || o.status === 'PROCESSING').length,
+    delivered: orders.filter(o => o.status === 'DELIVERED').length,
+    revenue: `₹${orders.filter(o => o.paymentStatus === 'Paid' || o.status === 'DELIVERED').reduce((sum, o) => sum + o.numericAmount, 0).toLocaleString()}`
   };
 
   return (
     <div className="admin-orders-page">
+      {/* Real-time Order Alert Popup */}
+      {newOrderAlert && (
+        <div style={{
+          backgroundColor: '#0c831f',
+          color: '#ffffff',
+          borderRadius: '10px',
+          padding: '16px 20px',
+          marginBottom: '16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          boxShadow: '0 4px 12px rgba(12, 131, 31, 0.3)',
+          animation: 'slideDown 0.3s ease'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Bell size={24} className="spin" />
+            <div>
+              <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '700' }}>🔔 New Order Received: {newOrderAlert.orderId}</h4>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', opacity: 0.9 }}>
+                Amount: ₹{newOrderAlert.totalPrice} • Payment: {newOrderAlert.paymentMethod}
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              onClick={() => handleUpdateStatus(newOrderAlert._id, 'PROCESSING')}
+              style={{ backgroundColor: '#fff', color: '#0c831f', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}
+            >
+              Accept Order
+            </button>
+            <button 
+              onClick={() => setNewOrderAlert(null)}
+              style={{ background: 'transparent', border: '1px solid #fff', color: '#fff', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer' }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header Section */}
       <div className="orders-header">
         <div className="header-title">
-          <h1>Orders</h1>
-          <p>Monitor and manage customer transactions</p>
+          <h1>Orders Management</h1>
+          <p>Accept incoming customer orders, dispatch & track fulfillment</p>
         </div>
         <div className="header-actions">
           <div className="search-box">
             <Search size={18} className="icon" />
             <input 
               type="text" 
-              placeholder="Search ID, customer, seller..." 
+              placeholder="Search ID, customer..." 
               value={searchTerm}
               onChange={handleSearch}
             />
@@ -156,20 +241,20 @@ export default function AdminOrders() {
           <div className="filter-dropdown">
             <Truck size={18} className="icon" />
             <select value={deliveryFilter} onChange={handleDeliveryFilter}>
-              <option value="All">All Delivery Status</option>
-              <option value="Pending">Pending</option>
-              <option value="Processing">Processing</option>
-              <option value="Delivered">Delivered</option>
-              <option value="Cancelled">Cancelled</option>
+              <option value="All">All Order Status</option>
+              <option value="PENDING">Pending (New)</option>
+              <option value="PROCESSING">Processing (Accepted)</option>
+              <option value="SHIPPED">Shipped (Dispatched)</option>
+              <option value="DELIVERED">Delivered</option>
+              <option value="CANCELLED">Cancelled</option>
             </select>
           </div>
           <div className="filter-dropdown">
             <CreditCard size={18} className="icon" />
             <select value={paymentFilter} onChange={handlePaymentFilter}>
-              <option value="All">All Payment Status</option>
+              <option value="All">All Payments</option>
               <option value="Paid">Paid</option>
               <option value="Pending">Pending</option>
-              <option value="Failed">Failed</option>
             </select>
           </div>
         </div>
@@ -187,21 +272,21 @@ export default function AdminOrders() {
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon bg-green">
-            <PackageOpen size={24} />
-          </div>
-          <div className="stat-info">
-            <p className="stat-label">Delivered Orders</p>
-            <h3 className="stat-value">{stats.delivered}</h3>
-          </div>
-        </div>
-        <div className="stat-card">
           <div className="stat-icon bg-orange">
             <Clock size={24} />
           </div>
           <div className="stat-info">
-            <p className="stat-label">Pending Orders</p>
+            <p className="stat-label">Pending / Processing</p>
             <h3 className="stat-value">{stats.pending}</h3>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon bg-green">
+            <CheckCircle size={24} />
+          </div>
+          <div className="stat-info">
+            <p className="stat-label">Delivered Orders</p>
+            <h3 className="stat-value">{stats.delivered}</h3>
           </div>
         </div>
         <div className="stat-card">
@@ -219,75 +304,110 @@ export default function AdminOrders() {
       <div className="orders-card card">
         <div className="table-responsive">
           {loading ? (
-            <div className="empty-state">
-              <div style={{ padding: '40px', color: '#666' }}>Loading real-time orders...</div>
-            </div>
+            <div style={{ padding: '40px', textAlign: 'center' }}>Loading orders...</div>
           ) : filteredOrders.length === 0 ? (
             <div className="empty-state">
               <ShoppingBag size={48} className="empty-icon" />
               <h3>No Orders Found</h3>
-              <p>Try adjusting your search or filter criteria.</p>
+              <p>When customers place orders, they will appear here in real-time.</p>
             </div>
           ) : (
             <table className="orders-table">
               <thead>
                 <tr>
-                  <th>Order Info</th>
-                  <th>Product</th>
-                  <th>Total Amount</th>
+                  <th>Order ID & Customer</th>
+                  <th>Products</th>
+                  <th>Amount</th>
                   <th>Payment</th>
-                  <th>Delivery</th>
-                  <th>Actions</th>
+                  <th>Status</th>
+                  <th>Order Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredOrders.map((order) => (
-                  <tr key={order.id}>
+                  <tr key={order.realId || order.id} style={{ backgroundColor: order.status === 'PENDING' ? '#f0fdf4' : 'inherit' }}>
                     <td>
                       <div className="order-info-cell">
-                        <p className="order-id">{order.id}</p>
-                        <p className="customer-name">{order.customer}</p>
-                        <p className="order-date">{order.date}</p>
+                        <p className="order-id" style={{ fontWeight: '700', color: '#0c831f' }}>{order.id}</p>
+                        <p className="customer-name" style={{ fontWeight: '600', margin: 0 }}>{order.customer}</p>
+                        <p className="order-date" style={{ fontSize: '12px', color: '#666' }}>{order.date}</p>
                       </div>
                     </td>
                     <td>
                       <div className="product-cell">
-                        <img src={order.img} alt={order.product} />
+                        <img src={order.img} alt={order.productTitle} style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px' }} />
                         <div>
-                          <p className="product-name">{order.product}</p>
-                          <p className="seller-name">by {order.seller}</p>
+                          <p className="product-name" style={{ fontWeight: '600', margin: 0 }}>{order.productTitle}</p>
+                          <p className="seller-name" style={{ fontSize: '12px', color: '#666' }}>Qty: {order.qty} items</p>
                         </div>
                       </div>
                     </td>
-                    <td><span className="amount-text">{order.amount}</span></td>
+                    <td><span className="amount-text" style={{ fontWeight: '700' }}>{order.amount}</span></td>
                     <td>
                       <div className="payment-cell">
-                        <span className={`order-badge ${getPaymentClass(order.paymentStatus)}`}>
+                        <span className={`order-badge ${order.paymentStatus === 'Paid' ? 'status-delivered' : 'status-pending'}`}>
                           {order.paymentStatus}
                         </span>
-                        <p className="method-text">{order.paymentMethod}</p>
+                        <p className="method-text" style={{ fontSize: '12px', color: '#666', margin: '4px 0 0 0' }}>{order.paymentMethod}</p>
                       </div>
                     </td>
                     <td>
-                      <span className={`order-badge ${getDeliveryClass(order.deliveryStatus)}`}>
-                        {order.deliveryStatus}
+                      <span className={`order-badge ${getDeliveryClass(order.status)}`}>
+                        {order.status}
                       </span>
                     </td>
                     <td>
-                      <div className="action-buttons">
-                        <button className="btn-icon view" title="View Details" onClick={() => openModal(order)}>
-                          <Eye size={18} />
-                        </button>
-                        <button className="btn-icon edit" title="Update Status">
-                          <Edit size={18} />
-                        </button>
-                        {order.deliveryStatus !== 'Cancelled' && order.deliveryStatus !== 'Delivered' && (
-                           <button className="btn-icon cancel" title="Cancel Order">
-                             <XCircle size={18} />
-                           </button>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        {/* ACCEPT ORDER BUTTON */}
+                        {order.status === 'PENDING' && (
+                          <button 
+                            disabled={updatingId === order.realId}
+                            onClick={() => handleUpdateStatus(order.realId, 'PROCESSING')}
+                            style={{ backgroundColor: '#0c831f', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            title="Accept and start processing order"
+                          >
+                            <Check size={14} /> Accept
+                          </button>
                         )}
-                        <button className="btn-icon delete" title="Delete Order">
-                          <Trash2 size={18} />
+
+                        {/* SHIP ORDER BUTTON */}
+                        {order.status === 'PROCESSING' && (
+                          <button 
+                            disabled={updatingId === order.realId}
+                            onClick={() => handleUpdateStatus(order.realId, 'SHIPPED')}
+                            style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            title="Dispatch order for delivery"
+                          >
+                            <Truck size={14} /> Dispatch
+                          </button>
+                        )}
+
+                        {/* DELIVER ORDER BUTTON */}
+                        {order.status === 'SHIPPED' && (
+                          <button 
+                            disabled={updatingId === order.realId}
+                            onClick={() => handleUpdateStatus(order.realId, 'DELIVERED', true)}
+                            style={{ backgroundColor: '#16a34a', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            title="Mark order as completed & delivered"
+                          >
+                            <CheckCircle size={14} /> Complete
+                          </button>
+                        )}
+
+                        {/* REJECT BUTTON */}
+                        {(order.status === 'PENDING' || order.status === 'PROCESSING') && (
+                          <button 
+                            disabled={updatingId === order.realId}
+                            onClick={() => handleUpdateStatus(order.realId, 'CANCELLED')}
+                            style={{ backgroundColor: '#fee2e2', color: '#ef4444', border: '1px solid #fca5a5', padding: '6px 8px', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}
+                            title="Cancel / Reject Order"
+                          >
+                            Reject
+                          </button>
+                        )}
+
+                        <button className="btn-icon view" title="View Full Details" onClick={() => openModal(order)}>
+                          <Eye size={16} />
                         </button>
                       </div>
                     </td>
@@ -302,92 +422,114 @@ export default function AdminOrders() {
       {/* Order Details Modal */}
       {isModalOpen && selectedOrder && (
         <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Order Details</h2>
-              <button className="close-btn" onClick={closeModal}><X size={24} /></button>
+          <div className="modal-content large" onClick={(e) => e.stopPropagation()} style={{ maxHeight: '88vh', overflowY: 'auto', padding: '24px' }}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h2 style={{ margin: 0 }}>Order Details: {selectedOrder.id}</h2>
+                <p style={{ margin: '4px 0 0 0', color: '#666', fontSize: '13px' }}>Placed on {selectedOrder.date}</p>
+              </div>
+              <button className="close-btn" onClick={closeModal} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={24} /></button>
             </div>
             
-            <div className="modal-body bg-gray-light">
-              <div className="order-modal-top">
+            <div className="modal-body">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <User size={16} color="#3b82f6" /> Customer Info
+                  </h4>
+                  <p style={{ margin: '0 0 4px 0', fontSize: '13px' }}><strong>Name:</strong> {selectedOrder.customer}</p>
+                  <p style={{ margin: '0 0 4px 0', fontSize: '13px' }}><strong>Email:</strong> {selectedOrder.customerEmail}</p>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <MapPin size={16} color="#ef4444" /> Shipping Address
+                  </h4>
+                  <p style={{ margin: 0, fontSize: '13px' }}>{selectedOrder.address}</p>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CreditCard size={16} color="#16a34a" /> Payment Summary
+                  </h4>
+                  <p style={{ margin: '0 0 4px 0', fontSize: '13px' }}><strong>Method:</strong> {selectedOrder.paymentMethod}</p>
+                  <p style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#0c831f' }}>Total: {selectedOrder.amount}</p>
+                </div>
+              </div>
+
+              {/* Items List */}
+              <div style={{ marginBottom: '20px' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '15px' }}>Ordered Items ({selectedOrder.itemsList?.length || 1})</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {selectedOrder.itemsList && selectedOrder.itemsList.length > 0 ? (
+                    selectedOrder.itemsList.map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <img src={item.image || 'https://placehold.co/40x40'} alt={item.title} style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '6px' }} />
+                          <div>
+                            <p style={{ margin: 0, fontWeight: '600', fontSize: '14px' }}>{item.title}</p>
+                            <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>Qty: {item.qty} × ₹{item.price}</p>
+                          </div>
+                        </div>
+                        <span style={{ fontWeight: '700', fontSize: '14px' }}>₹{(item.price * item.qty).toLocaleString()}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No items details available.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Admin Actions Footer */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
                 <div>
-                  <h3 className="modal-order-id">{selectedOrder.id}</h3>
-                  <p className="modal-order-date">Placed on {selectedOrder.date}</p>
-                </div>
-                <div className="modal-status-badges">
-                  <span className={`order-badge large ${getPaymentClass(selectedOrder.paymentStatus)}`}>
-                    Payment: {selectedOrder.paymentStatus}
-                  </span>
-                  <span className={`order-badge large ${getDeliveryClass(selectedOrder.deliveryStatus)}`}>
-                    Delivery: {selectedOrder.deliveryStatus}
+                  <span style={{ fontSize: '13px', color: '#666', marginRight: '8px' }}>Current Status:</span>
+                  <span className={`order-badge ${getDeliveryClass(selectedOrder.status)}`}>
+                    {selectedOrder.status}
                   </span>
                 </div>
-              </div>
 
-              <div className="order-details-grid">
-                <div className="details-card">
-                  <h4><User size={18} className="text-blue" /> Customer Information</h4>
-                  <div className="details-card-content">
-                    <p><strong>Name:</strong> {selectedOrder.customer}</p>
-                    <p><strong>Address:</strong> {selectedOrder.address}</p>
-                  </div>
-                </div>
-                <div className="details-card">
-                  <h4><Store size={18} className="text-purple" /> Seller Information</h4>
-                  <div className="details-card-content">
-                    <p><strong>Shop Name:</strong> {selectedOrder.seller}</p>
-                  </div>
-                </div>
-                <div className="details-card">
-                  <h4><CreditCard size={18} className="text-orange" /> Payment Details</h4>
-                  <div className="details-card-content">
-                    <p><strong>Method:</strong> {selectedOrder.paymentMethod}</p>
-                    <p><strong>Total Amount:</strong> <span className="text-green font-bold">{selectedOrder.amount}</span></p>
-                  </div>
-                </div>
-              </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  {selectedOrder.status === 'PENDING' && (
+                    <button 
+                      onClick={() => handleUpdateStatus(selectedOrder.realId, 'PROCESSING')}
+                      style={{ backgroundColor: '#0c831f', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}
+                    >
+                      Accept Order
+                    </button>
+                  )}
 
-              <div className="ordered-products-section">
-                <h4>Ordered Items</h4>
-                <div className="ordered-product-card">
-                  <img src={selectedOrder.img} alt={selectedOrder.product} />
-                  <div className="op-info">
-                    <h5>{selectedOrder.product}</h5>
-                    <p>Qty: {selectedOrder.qty}</p>
-                  </div>
-                  <div className="op-price">
-                    {selectedOrder.amount}
-                  </div>
-                </div>
-              </div>
+                  {selectedOrder.status === 'PROCESSING' && (
+                    <button 
+                      onClick={() => handleUpdateStatus(selectedOrder.realId, 'SHIPPED')}
+                      style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}
+                    >
+                      Dispatch Order
+                    </button>
+                  )}
 
-              <div className="order-timeline-section">
-                <h4>Order Timeline</h4>
-                <div className="timeline">
-                  <div className={`timeline-step ${selectedOrder.deliveryStatus !== 'Cancelled' ? 'completed' : 'cancelled'}`}>
-                    <div className="step-icon"><CheckCircle size={16} /></div>
-                    <div className="step-text">Order Placed</div>
-                  </div>
-                  <div className={`timeline-step ${['Processing', 'Delivered'].includes(selectedOrder.deliveryStatus) ? 'completed' : ''}`}>
-                    <div className="step-icon"><PackageOpen size={16} /></div>
-                    <div className="step-text">Processing</div>
-                  </div>
-                  <div className={`timeline-step ${selectedOrder.deliveryStatus === 'Delivered' ? 'completed' : ''}`}>
-                    <div className="step-icon"><Truck size={16} /></div>
-                    <div className="step-text">Delivered</div>
-                  </div>
-                </div>
-              </div>
+                  {selectedOrder.status === 'SHIPPED' && (
+                    <button 
+                      onClick={() => handleUpdateStatus(selectedOrder.realId, 'DELIVERED', true)}
+                      style={{ backgroundColor: '#16a34a', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer' }}
+                    >
+                      Mark Delivered
+                    </button>
+                  )}
 
-              <div className="modal-actions">
-                <button className="btn-outline-danger">
-                  <XCircle size={18} /> Cancel Order
-                </button>
-                <div className="right-actions">
-                  <button className="btn-outline">
-                    <Edit size={18} /> Update Status
-                  </button>
-                  <button className="btn-primary" onClick={closeModal}>
+                  {(selectedOrder.status === 'PENDING' || selectedOrder.status === 'PROCESSING') && (
+                    <button 
+                      onClick={() => handleUpdateStatus(selectedOrder.realId, 'CANCELLED')}
+                      style={{ backgroundColor: '#fee2e2', color: '#ef4444', border: '1px solid #fca5a5', padding: '10px 16px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
+                    >
+                      Reject Order
+                    </button>
+                  )}
+
+                  <button 
+                    onClick={closeModal}
+                    style={{ padding: '10px 18px', borderRadius: '6px', border: '1px solid #ccc', background: '#f1f5f9', cursor: 'pointer', fontWeight: '600' }}
+                  >
                     Close
                   </button>
                 </div>
